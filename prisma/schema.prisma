@@ -1,0 +1,55 @@
+generator client {
+  provider      = "prisma-client-js"
+  // "native" covers local dev; the musl target is needed for the Alpine-based
+  // production Docker image (see Dockerfile).
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Auth uses Credentials + JWT sessions (see src/auth.ts), so only a plain
+// user record with a password hash is needed - no adapter-managed
+// Account/Session/VerificationToken tables.
+model User {
+  id           String   @id @default(cuid())
+  name         String?
+  email        String   @unique
+  passwordHash String
+  locations    Location[]
+  createdAt    DateTime @default(now())
+}
+
+model Location {
+  id        String  @id @default(cuid())
+  userId    String
+  label     String
+  latitude  Float
+  longitude Float
+  timezone  String?
+  isDefault Boolean @default(false)
+
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshots WeatherSnapshot[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, latitude, longitude])
+}
+
+// Persisted history of a consensus computation, useful for auditing/trends.
+// Not the live cache — that lives in Redis, keyed by rounded coordinates.
+model WeatherSnapshot {
+  id         String   @id @default(cuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  consensus Json
+  sources   Json
+
+  createdAt DateTime @default(now())
+
+  @@index([locationId, createdAt])
+}
