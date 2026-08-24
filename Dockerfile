@@ -21,14 +21,14 @@ FROM base AS runner
 WORKDIR /app
 
 RUN apk add --no-cache openssl \
-  && addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs
+  && addgroup -S -g 1001 nodejs \
+  && adduser -S -D -H -u 1001 -G nodejs nextjs
 
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 RUN mkdir .next && chown nextjs:nodejs .next
 
 # Next.js standalone output only traces server files - the static assets and
