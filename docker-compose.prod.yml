@@ -65,7 +65,10 @@ services:
       WEATHERAPI_API_KEY: ${WEATHERAPI_API_KEY:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
-      - "3000:3000"
+      # Defaults to publishing on every interface, port 3000 - override
+      # APP_BIND (e.g. "127.0.0.1:3010") in .env when this host already runs
+      # other services and the app should stay behind a reverse proxy.
+      - "${APP_BIND:-0.0.0.0:3000}:3000"
 
 volumes:
   postgres_data:
