@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Search, X, AlertCircle } from "lucide-react";
 import type { GeocodeResult } from "@/lib/weather-types";
 import type { WeatherResponse } from "@/lib/weatherService";
 import { getTranslations, type Locale } from "@/lib/i18n";
+import { buildCityParam } from "@/lib/citySlug";
 import WeatherResult from "@/components/WeatherResult";
-import WeatherSkeleton from "@/components/WeatherSkeleton";
 import SavedLocationsList, { type SavedLocation } from "@/components/SavedLocationsList";
+
+const AUTO_REFRESH_MS = 15 * 60 * 1000;
 
 interface SelectedLocation {
   label: string;
@@ -23,19 +26,25 @@ export default function WeatherDashboard({
   locale,
   isAuthenticated,
   initialSavedLocations,
+  initialSelected,
+  initialWeather,
+  initialError,
 }: {
   locale: Locale;
   isAuthenticated: boolean;
   initialSavedLocations: SavedLocation[];
+  initialSelected?: SelectedLocation;
+  initialWeather?: WeatherResponse | null;
+  initialError?: string | null;
 }) {
   const t = getTranslations(locale);
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<GeocodeResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const [selected, setSelected] = useState<SelectedLocation | null>(null);
-  const [weather, setWeather] = useState<WeatherResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [selected] = useState<SelectedLocation | null>(initialSelected ?? null);
+  const [weather, setWeather] = useState<WeatherResponse | null>(initialWeather ?? null);
+  const [error] = useState<string | null>(initialError ?? null);
   const [savedLocations, setSavedLocations] = useState(initialSavedLocations);
   const [saving, setSaving] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,23 +72,28 @@ export default function WeatherDashboard({
     };
   }, [query]);
 
-  async function loadWeather(location: SelectedLocation) {
-    setSelected(location);
+  // Keeps the displayed reading from going stale while the tab stays open on
+  // a city: silently refetches in place (same cadence as the server-side
+  // cache TTL) rather than disturbing the view with a loading state.
+  useEffect(() => {
+    if (!selected) return;
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/weather?lat=${selected.latitude}&lon=${selected.longitude}`);
+        if (!res.ok) return;
+        setWeather(await res.json());
+      } catch {
+        // Keep showing the last good data rather than disrupting the view.
+      }
+    }, AUTO_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [selected]);
+
+  function goToCity(label: string, latitude: number, longitude: number) {
     setSuggestions([]);
     setQuery("");
-    setLoading(true);
-    setError(null);
-    setWeather(null);
-    try {
-      const res = await fetch(`/api/weather?lat=${location.latitude}&lon=${location.longitude}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to load weather");
-      setWeather(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load weather");
-    } finally {
-      setLoading(false);
-    }
+    const param = buildCityParam(label, latitude, longitude);
+    router.push(`/weather/${param}?label=${encodeURIComponent(label)}`);
   }
 
   async function handleSave() {
@@ -155,9 +169,7 @@ export default function WeatherDashboard({
               <li key={`${r.latitude}-${r.longitude}-${i}`}>
                 <button
                   type="button"
-                  onClick={() =>
-                    loadWeather({ label: formatResult(r), latitude: r.latitude, longitude: r.longitude })
-                  }
+                  onClick={() => goToCity(formatResult(r), r.latitude, r.longitude)}
                   className="w-full px-4 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
                 >
                   {formatResult(r)}
@@ -171,13 +183,12 @@ export default function WeatherDashboard({
       {isAuthenticated && !hasResult && (
         <SavedLocationsList
           locations={savedLocations}
-          onSelect={(loc) => loadWeather(loc)}
+          onSelect={(loc) => goToCity(loc.label, loc.latitude, loc.longitude)}
           onDelete={handleDeleteSaved}
           removeLabel={t.removeLocation}
         />
       )}
 
-      {loading && <WeatherSkeleton />}
       {error && (
         <p className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
           <AlertCircle className="h-4 w-4 shrink-0" />
@@ -204,7 +215,7 @@ export default function WeatherDashboard({
           {isAuthenticated && savedLocations.length > 0 && (
             <SavedLocationsList
               locations={savedLocations}
-              onSelect={(loc) => loadWeather(loc)}
+              onSelect={(loc) => goToCity(loc.label, loc.latitude, loc.longitude)}
               onDelete={handleDeleteSaved}
               removeLabel={t.removeLocation}
             />

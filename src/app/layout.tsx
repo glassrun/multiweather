@@ -14,8 +14,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Weather Consensus",
+  title: { default: "Weather Consensus", template: "%s · Weather Consensus" },
   description: "The most likely current weather and forecast, aggregated from multiple sources.",
+  // Read directly from process.env (not the validated `env` proxy) - this
+  // object literal runs at module load, including while `next build` is
+  // just tracing pages, when required vars like DATABASE_URL intentionally
+  // aren't set yet. A raw, optional read can't throw there.
+  ...(process.env.SITE_URL ? { metadataBase: new URL(process.env.SITE_URL) } : {}),
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

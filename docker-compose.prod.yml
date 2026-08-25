@@ -64,6 +64,7 @@ services:
       ACCUWEATHER_API_KEY: ${ACCUWEATHER_API_KEY:-}
       WEATHERAPI_API_KEY: ${WEATHERAPI_API_KEY:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      SITE_URL: ${SITE_URL:-}
     ports:
       # Defaults to publishing on every interface, port 3000 - override
       # APP_BIND (e.g. "127.0.0.1:3010") in .env when this host already runs

@@ -8,6 +8,10 @@ const envSchema = z.object({
   ACCUWEATHER_API_KEY: z.string().optional(),
   WEATHERAPI_API_KEY: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
+  // Used server-side only (metadata generation), so a plain (non-
+  // NEXT_PUBLIC_) var is fine - it's read at request time, not baked into
+  // the client bundle at build time. e.g. "https://weather.promptbox.club"
+  SITE_URL: z.string().optional(),
 });
 
 type Env = z.infer<typeof envSchema>;
@@ -29,6 +33,7 @@ function loadEnv(): Env {
       ACCUWEATHER_API_KEY: process.env.ACCUWEATHER_API_KEY || undefined,
       WEATHERAPI_API_KEY: process.env.WEATHERAPI_API_KEY || undefined,
       SENTRY_DSN: process.env.SENTRY_DSN || undefined,
+      SITE_URL: process.env.SITE_URL || undefined,
     });
   }
   return cached;
