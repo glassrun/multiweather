@@ -11,10 +11,12 @@ export default function SavedLocationsList({
   locations,
   onSelect,
   onDelete,
+  removeLabel,
 }: {
   locations: SavedLocation[];
   onSelect: (location: SavedLocation) => void;
   onDelete: (id: string) => void;
+  removeLabel: (label: string) => string;
 }) {
   if (locations.length === 0) return null;
 
@@ -31,7 +33,7 @@ export default function SavedLocationsList({
           <button
             type="button"
             onClick={() => onDelete(loc.id)}
-            aria-label={`Remove ${loc.label}`}
+            aria-label={removeLabel(loc.label)}
             className="rounded-full px-1.5 text-black/40 hover:bg-black/5 hover:text-black/70 dark:text-white/40 dark:hover:bg-white/10 dark:hover:text-white/70"
           >
             ×

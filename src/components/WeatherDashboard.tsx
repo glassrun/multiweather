@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { GeocodeResult } from "@/lib/weather-types";
 import type { WeatherResponse } from "@/lib/weatherService";
+import { getTranslations, type Locale } from "@/lib/i18n";
 import WeatherResult from "@/components/WeatherResult";
 import SavedLocationsList, { type SavedLocation } from "@/components/SavedLocationsList";
 
@@ -17,12 +18,15 @@ function formatResult(r: GeocodeResult): string {
 }
 
 export default function WeatherDashboard({
+  locale,
   isAuthenticated,
   initialSavedLocations,
 }: {
+  locale: Locale;
   isAuthenticated: boolean;
   initialSavedLocations: SavedLocation[];
 }) {
+  const t = getTranslations(locale);
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<GeocodeResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -110,25 +114,26 @@ export default function WeatherDashboard({
   const alreadySaved =
     selected && savedLocations.some((l) => l.latitude === selected.latitude && l.longitude === selected.longitude);
 
+  const hasResult = Boolean(weather && selected);
+
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-10">
-      <div>
-        <h1 className="text-2xl font-semibold">Weather Consensus</h1>
-        <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-          The most likely current weather and forecast, aggregated across multiple sources.
-        </p>
-      </div>
+    <div
+      className={`mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-4 ${hasResult ? "py-4" : "py-10"}`}
+    >
+      {!hasResult && (
+        <p className="text-sm text-black/60 dark:text-white/60">{t.tagline}</p>
+      )}
 
       <div className="relative">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search for a city..."
-          className="w-full rounded border border-black/15 px-4 py-2.5 dark:border-white/20"
+          placeholder={t.searchPlaceholder}
+          className="w-full rounded border border-black/15 px-3 py-2 text-sm dark:border-white/20"
         />
         {(visibleSuggestions.length > 0 || searching) && (
           <ul className="absolute z-10 mt-1 w-full rounded border border-black/10 bg-white shadow-lg dark:border-white/10 dark:bg-neutral-900">
-            {searching && <li className="px-4 py-2 text-sm text-black/50 dark:text-white/50">Searching…</li>}
+            {searching && <li className="px-4 py-2 text-sm text-black/50 dark:text-white/50">{t.searching}</li>}
             {visibleSuggestions.map((r, i) => (
               <li key={`${r.latitude}-${r.longitude}-${i}`}>
                 <button
@@ -146,23 +151,24 @@ export default function WeatherDashboard({
         )}
       </div>
 
-      {isAuthenticated && (
+      {isAuthenticated && !hasResult && (
         <SavedLocationsList
           locations={savedLocations}
           onSelect={(loc) => loadWeather(loc)}
           onDelete={handleDeleteSaved}
+          removeLabel={t.removeLocation}
         />
       )}
 
-      {loading && <p className="text-sm text-black/60 dark:text-white/60">Loading weather…</p>}
+      {loading && <p className="text-sm text-black/60 dark:text-white/60">{t.loadingWeather}</p>}
       {error && (
         <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>
       )}
 
       {weather && selected && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium">{selected.label}</h2>
+            <h2 className="text-base font-medium">{selected.label}</h2>
             {isAuthenticated && (
               <button
                 type="button"
@@ -170,11 +176,19 @@ export default function WeatherDashboard({
                 disabled={saving || Boolean(alreadySaved)}
                 className="rounded border border-black/15 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-white/20"
               >
-                {alreadySaved ? "Saved" : saving ? "Saving…" : "Save location"}
+                {alreadySaved ? t.saved : saving ? t.saving : t.saveLocation}
               </button>
             )}
           </div>
-          <WeatherResult result={weather} />
+          <WeatherResult result={weather} t={t} />
+          {isAuthenticated && savedLocations.length > 0 && (
+            <SavedLocationsList
+              locations={savedLocations}
+              onSelect={(loc) => loadWeather(loc)}
+              onDelete={handleDeleteSaved}
+              removeLabel={t.removeLocation}
+            />
+          )}
         </div>
       )}
     </div>

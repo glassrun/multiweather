@@ -1,9 +1,12 @@
+import { headers } from "next/headers";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { detectLocaleFromAcceptLanguage } from "@/lib/i18n";
 import WeatherDashboard from "@/components/WeatherDashboard";
 
 export default async function Home() {
-  const session = await auth();
+  const [session, headerList] = await Promise.all([auth(), headers()]);
+  const locale = detectLocaleFromAcceptLanguage(headerList.get("accept-language"));
 
   const savedLocations = session?.user?.id
     ? await prisma.location.findMany({
@@ -13,5 +16,11 @@ export default async function Home() {
       })
     : [];
 
-  return <WeatherDashboard isAuthenticated={Boolean(session?.user)} initialSavedLocations={savedLocations} />;
+  return (
+    <WeatherDashboard
+      locale={locale}
+      isAuthenticated={Boolean(session?.user)}
+      initialSavedLocations={savedLocations}
+    />
+  );
 }
