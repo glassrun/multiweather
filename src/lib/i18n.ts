@@ -121,11 +121,33 @@ export const translations: Record<Locale, Translations> = {
   },
 };
 
+const SUPPORTED_LOCALES: readonly Locale[] = ["en", "el"];
+
+/**
+ * Accept-Language is a comma-separated, q-weighted preference list, e.g.
+ * "en-US,en;q=0.9,el;q=0.3" - browsers don't necessarily list entries in
+ * priority order, so the q values (default 1 when omitted) are what
+ * actually determine preference, not string position.
+ */
+function parseAcceptLanguage(acceptLanguage: string): Array<{ code: string; quality: number }> {
+  return acceptLanguage
+    .split(",")
+    .map((entry) => {
+      const [rawTag, ...params] = entry.trim().split(";");
+      const qParam = params.find((p) => p.trim().startsWith("q="));
+      const quality = qParam ? Number(qParam.trim().slice(2)) : 1;
+      const code = rawTag.trim().split("-")[0].toLowerCase();
+      return { code, quality: Number.isFinite(quality) ? quality : 1 };
+    })
+    .filter((entry) => entry.code.length > 0)
+    .sort((a, b) => b.quality - a.quality);
+}
+
 export function detectLocaleFromAcceptLanguage(acceptLanguage: string | null | undefined): Locale {
   if (!acceptLanguage) return "en";
-  // Accept-Language is a comma-separated, q-weighted list, e.g. "el-GR,el;q=0.9,en;q=0.8".
-  // We only support en/el right now, so just check whether Greek appears at all.
-  return /\bel\b/i.test(acceptLanguage) ? "el" : "en";
+  const preferences = parseAcceptLanguage(acceptLanguage);
+  const match = preferences.find((p) => (SUPPORTED_LOCALES as readonly string[]).includes(p.code));
+  return (match?.code as Locale | undefined) ?? "en";
 }
 
 export function getTranslations(locale: Locale): Translations {
