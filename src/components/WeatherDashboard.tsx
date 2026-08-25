@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Search, X, AlertCircle } from "lucide-react";
 import type { GeocodeResult } from "@/lib/weather-types";
 import type { WeatherResponse } from "@/lib/weatherService";
 import { getTranslations, type Locale } from "@/lib/i18n";
 import WeatherResult from "@/components/WeatherResult";
+import WeatherSkeleton from "@/components/WeatherSkeleton";
 import SavedLocationsList, { type SavedLocation } from "@/components/SavedLocationsList";
 
 interface SelectedLocation {
@@ -37,6 +39,7 @@ export default function WeatherDashboard({
   const [savedLocations, setSavedLocations] = useState(initialSavedLocations);
   const [saving, setSaving] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -109,6 +112,12 @@ export default function WeatherDashboard({
     await fetch(`/api/locations/${id}`, { method: "DELETE" });
   }
 
+  function clearQuery() {
+    setQuery("");
+    setSuggestions([]);
+    inputRef.current?.focus();
+  }
+
   const visibleSuggestions = query.trim().length >= 2 ? suggestions : [];
 
   const alreadySaved =
@@ -117,22 +126,30 @@ export default function WeatherDashboard({
   const hasResult = Boolean(weather && selected);
 
   return (
-    <div
-      className={`mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-4 ${hasResult ? "py-4" : "py-10"}`}
-    >
-      {!hasResult && (
-        <p className="text-sm text-black/60 dark:text-white/60">{t.tagline}</p>
-      )}
+    <div className={`mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-4 ${hasResult ? "py-4" : "py-10"}`}>
+      {!hasResult && <p className="text-sm text-black/60 dark:text-white/60">{t.tagline}</p>}
 
       <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-black/35 dark:text-white/35" />
         <input
+          ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t.searchPlaceholder}
-          className="w-full rounded border border-black/15 px-3 py-2 text-sm dark:border-white/20"
+          className="w-full rounded-lg border border-black/15 bg-white py-2 pl-9 pr-9 text-sm outline-none transition-colors focus:border-blue-500 dark:border-white/20 dark:bg-neutral-950 dark:focus:border-blue-400"
         />
+        {query && (
+          <button
+            type="button"
+            onClick={clearQuery}
+            aria-label="Clear"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-black/35 hover:bg-black/5 hover:text-black/60 dark:text-white/35 dark:hover:bg-white/10 dark:hover:text-white/60"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
         {(visibleSuggestions.length > 0 || searching) && (
-          <ul className="absolute z-10 mt-1 w-full rounded border border-black/10 bg-white shadow-lg dark:border-white/10 dark:bg-neutral-900">
+          <ul className="absolute z-10 mt-1.5 w-full overflow-hidden rounded-lg border border-black/10 bg-white shadow-lg dark:border-white/10 dark:bg-neutral-900">
             {searching && <li className="px-4 py-2 text-sm text-black/50 dark:text-white/50">{t.searching}</li>}
             {visibleSuggestions.map((r, i) => (
               <li key={`${r.latitude}-${r.longitude}-${i}`}>
@@ -160,13 +177,16 @@ export default function WeatherDashboard({
         />
       )}
 
-      {loading && <p className="text-sm text-black/60 dark:text-white/60">{t.loadingWeather}</p>}
+      {loading && <WeatherSkeleton />}
       {error && (
-        <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>
+        <p className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {error}
+        </p>
       )}
 
       {weather && selected && (
-        <div className="flex flex-col gap-3">
+        <div className="flex animate-[fadein_.25s_ease-out] flex-col gap-3">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-medium">{selected.label}</h2>
             {isAuthenticated && (
@@ -174,7 +194,7 @@ export default function WeatherDashboard({
                 type="button"
                 onClick={handleSave}
                 disabled={saving || Boolean(alreadySaved)}
-                className="rounded border border-black/15 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-white/20"
+                className="rounded-lg border border-black/15 px-3 py-1.5 text-sm transition-colors hover:bg-black/5 disabled:opacity-50 disabled:hover:bg-transparent dark:border-white/20 dark:hover:bg-white/10"
               >
                 {alreadySaved ? t.saved : saving ? t.saving : t.saveLocation}
               </button>
