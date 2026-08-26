@@ -16,7 +16,16 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 
-# ---- runner: minimal production image ----
+# ---- runner: production image, running via `next start` ----
+# Deliberately NOT using `output: "standalone"`: its bundled server.js never
+# completes the streaming SSR response for a route with a Suspense boundary
+# doing real async work (our /weather/[city], which has a loading.tsx and
+# awaits several provider fetches) - the boundary's content just never
+# flushes, so client hydration silently never happens for that subtree.
+# Confirmed reproducible with `node .next/standalone/server.js` and absent
+# with plain `next start` on the identical build. This costs image size
+# (full node_modules instead of the traced standalone subset) in exchange
+# for actually working.
 FROM base AS runner
 WORKDIR /app
 
@@ -25,16 +34,12 @@ RUN apk add --no-cache openssl \
   && adduser -S -D -H -u 1001 -G nodejs nextjs
 
 ENV NODE_ENV=production
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
 
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-RUN mkdir .next && chown nextjs:nodejs .next
-
-# Next.js standalone output only traces server files - the static assets and
-# public folder are copied in separately (documented Next.js requirement).
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/next.config.ts ./next.config.ts
 
 USER nextjs
 
@@ -43,4 +48,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
 
-CMD ["node", "server.js"]
+CMD ["node_modules/.bin/next", "start", "-p", "3000", "-H", "0.0.0.0"]

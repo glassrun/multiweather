@@ -1,13 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-export function proxy(request: NextRequest) {
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const isDev = process.env.NODE_ENV === "development";
+// Static CSP (not nonce-based): a per-request nonce must be byte-identical
+// across every inline script Next.js emits for a given page, including ones
+// streamed in later to resolve a Suspense boundary. If a boundary's resolved
+// content is flushed as a separate follow-up piece of work, it can end up
+// carrying a stale/mismatched nonce, and the browser silently drops that
+// script under CSP - which showed up as client hydration randomly never
+// completing on pages with real async work (e.g. /weather/[city]) while
+// simpler pages were unaffected. A static policy has no per-request value to
+// mismatch, at the cost of allowing inline scripts generally rather than
+// only framework-issued ones.
+const isDev = process.env.NODE_ENV === "development";
 
-  const cspHeader = `
+const cspHeader = `
     default-src 'self';
-    script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""};
-    style-src 'self' ${isDev ? "'unsafe-inline'" : `'nonce-${nonce}'`};
+    script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""};
+    style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data:;
     font-src 'self';
     object-src 'none';
@@ -16,15 +24,12 @@ export function proxy(request: NextRequest) {
     form-action 'self';
     frame-ancestors 'none';
     upgrade-insecure-requests;
-  `
-    .replace(/\s{2,}/g, " ")
-    .trim();
+`
+  .replace(/\s{2,}/g, " ")
+  .trim();
 
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("Content-Security-Policy", cspHeader);
-
-  const response = NextResponse.next({ request: { headers: requestHeaders } });
+export function proxy() {
+  const response = NextResponse.next();
   response.headers.set("Content-Security-Policy", cspHeader);
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
