@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 
-// Static CSP (not nonce-based): a per-request nonce must be byte-identical
-// across every inline script Next.js emits for a given page, including ones
-// streamed in later to resolve a Suspense boundary. If a boundary's resolved
-// content is flushed as a separate follow-up piece of work, it can end up
-// carrying a stale/mismatched nonce, and the browser silently drops that
-// script under CSP - which showed up as client hydration randomly never
-// completing on pages with real async work (e.g. /weather/[city]) while
-// simpler pages were unaffected. A static policy has no per-request value to
-// mismatch, at the cost of allowing inline scripts generally rather than
-// only framework-issued ones.
+// Static CSP rather than nonce-based. A per-request nonce was tried and
+// suspected as the cause of an intermittent hydration failure on slower
+// pages, but that turned out to be a red herring - this file was sitting at
+// the project root instead of src/proxy.ts (required once a src/ dir is in
+// use), so it was never actually running in any production build regardless
+// of its content. Kept static now anyway since there's no concrete need for
+// per-script nonces here, and it's one less moving part.
 const isDev = process.env.NODE_ENV === "development";
 
 const cspHeader = `

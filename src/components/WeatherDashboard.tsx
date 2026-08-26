@@ -8,6 +8,7 @@ import type { WeatherResponse } from "@/lib/weatherService";
 import { getTranslations, type Locale } from "@/lib/i18n";
 import { buildCityParam } from "@/lib/citySlug";
 import WeatherResult from "@/components/WeatherResult";
+import WeatherSkeleton from "@/components/WeatherSkeleton";
 import SavedLocationsList, { type SavedLocation } from "@/components/SavedLocationsList";
 
 interface SelectedLocation {
@@ -42,7 +43,8 @@ export default function WeatherDashboard({
   const [searching, setSearching] = useState(false);
   const [selected] = useState<SelectedLocation | null>(initialSelected ?? null);
   const [weather, setWeather] = useState<WeatherResponse | null>(initialWeather ?? null);
-  const [error] = useState<string | null>(initialError ?? null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
+  const [loadingInitial, setLoadingInitial] = useState(Boolean(initialSelected) && initialWeather === undefined);
   const [savedLocations, setSavedLocations] = useState(initialSavedLocations);
   const [saving, setSaving] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -69,6 +71,34 @@ export default function WeatherDashboard({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [query]);
+
+  // Permalink pages (/weather/[city]) intentionally don't fetch weather
+  // server-side - SSR there only resolves the label/coordinates, keeping the
+  // response fast, and this fetches the actual reading client-side once
+  // mounted (the same path a fresh search already uses reliably).
+  useEffect(() => {
+    if (!selected || initialWeather !== undefined) return;
+    let cancelled = false;
+    fetch(`/api/weather?lat=${selected.latitude}&lon=${selected.longitude}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) throw new Error(data.error ?? "Failed to load weather");
+        setWeather(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load weather");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingInitial(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // selected/initialWeather are stable for this component's lifetime (a
+    // fresh mount happens per navigation), so this only needs to run once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keeps the displayed reading from going stale while the tab stays open on
   // a city. Uses a server push (SSE) rather than a client-side setInterval:
@@ -194,6 +224,8 @@ export default function WeatherDashboard({
           {error}
         </p>
       )}
+
+      {loadingInitial && <WeatherSkeleton />}
 
       {weather && selected && (
         <div className="flex animate-[fadein_.25s_ease-out] flex-col gap-3">
