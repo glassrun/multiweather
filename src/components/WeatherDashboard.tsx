@@ -10,8 +10,6 @@ import { buildCityParam } from "@/lib/citySlug";
 import WeatherResult from "@/components/WeatherResult";
 import SavedLocationsList, { type SavedLocation } from "@/components/SavedLocationsList";
 
-const AUTO_REFRESH_MS = 15 * 60 * 1000;
-
 interface SelectedLocation {
   label: string;
   latitude: number;
@@ -73,20 +71,21 @@ export default function WeatherDashboard({
   }, [query]);
 
   // Keeps the displayed reading from going stale while the tab stays open on
-  // a city: silently refetches in place (same cadence as the server-side
-  // cache TTL) rather than disturbing the view with a loading state.
+  // a city. Uses a server push (SSE) rather than a client-side setInterval:
+  // browsers throttle timers in backgrounded tabs, which made a 15-minute
+  // poll fire late or get skipped entirely - the persistent connection here
+  // isn't subject to that, and reconnects on its own if it drops.
   useEffect(() => {
     if (!selected) return;
-    const id = setInterval(async () => {
+    const source = new EventSource(`/api/weather/stream?lat=${selected.latitude}&lon=${selected.longitude}`);
+    source.onmessage = (event) => {
       try {
-        const res = await fetch(`/api/weather?lat=${selected.latitude}&lon=${selected.longitude}`);
-        if (!res.ok) return;
-        setWeather(await res.json());
+        setWeather(JSON.parse(event.data));
       } catch {
-        // Keep showing the last good data rather than disrupting the view.
+        // Malformed payload - keep showing the last good data.
       }
-    }, AUTO_REFRESH_MS);
-    return () => clearInterval(id);
+    };
+    return () => source.close();
   }, [selected]);
 
   function goToCity(label: string, latitude: number, longitude: number) {
