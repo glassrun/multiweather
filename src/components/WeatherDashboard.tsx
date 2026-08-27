@@ -107,7 +107,8 @@ export default function WeatherDashboard({
   // isn't subject to that, and reconnects on its own if it drops.
   useEffect(() => {
     if (!selected) return;
-    const source = new EventSource(`/api/weather/stream?lat=${selected.latitude}&lon=${selected.longitude}`);
+    const { latitude, longitude } = selected;
+    const source = new EventSource(`/api/weather/stream?lat=${latitude}&lon=${longitude}`);
     source.onmessage = (event) => {
       try {
         setWeather(JSON.parse(event.data));
@@ -115,7 +116,27 @@ export default function WeatherDashboard({
         // Malformed payload - keep showing the last good data.
       }
     };
-    return () => source.close();
+
+    // Mobile browsers (notably Android Chrome) freeze background tabs and
+    // can drop their network connections entirely once the screen locks, so
+    // this stream may sit stale for however long the phone was locked. Force
+    // a fresh read the moment the tab is actually looked at again, rather
+    // than waiting for the next scheduled push.
+    function refetchOnVisible() {
+      if (document.visibilityState !== "visible") return;
+      fetch(`/api/weather?lat=${latitude}&lon=${longitude}`)
+        .then((res) => res.json())
+        .then((data) => setWeather(data))
+        .catch(() => {
+          // Keep showing the last good data.
+        });
+    }
+    document.addEventListener("visibilitychange", refetchOnVisible);
+
+    return () => {
+      source.close();
+      document.removeEventListener("visibilitychange", refetchOnVisible);
+    };
   }, [selected]);
 
   function goToCity(label: string, latitude: number, longitude: number) {
