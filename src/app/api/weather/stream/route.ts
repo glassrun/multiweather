@@ -5,9 +5,16 @@ import { getWeatherForLocation } from "@/lib/weatherService";
 // Never statically cached/prerendered - this is a live, per-connection stream.
 export const dynamic = "force-dynamic";
 
-const REFRESH_MS = 15 * 60 * 1000;
+// How often a push goes out to the client. This is intentionally decoupled
+// from how often we actually hit the weather providers: getWeatherForLocation
+// already serves from the 15-minute Redis cache when it's warm, so most of
+// these ticks just re-read that cache (cheap, no provider calls) and only
+// roughly 1 in 90 of them lands on an actual expired-cache provider fetch.
+// This is what makes the connection feel live without increasing load on
+// metered providers like AccuWeather's ~50-call/day free tier.
+const DATA_INTERVAL_MS = 10 * 1000;
 // Well under typical reverse-proxy idle timeouts (nginx defaults to 60s) so
-// the connection doesn't get silently dropped between real updates.
+// the connection doesn't get silently dropped if data pushes ever stall.
 const HEARTBEAT_MS = 25 * 1000;
 
 const querySchema = z.object({
@@ -52,7 +59,8 @@ export async function GET(request: NextRequest) {
         }
       };
 
-      refreshTimer = setInterval(sendUpdate, REFRESH_MS);
+      sendUpdate();
+      refreshTimer = setInterval(sendUpdate, DATA_INTERVAL_MS);
       heartbeatTimer = setInterval(() => {
         controller.enqueue(encoder.encode(`: keep-alive\n\n`));
       }, HEARTBEAT_MS);
