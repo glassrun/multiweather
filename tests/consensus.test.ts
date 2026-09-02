@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   agreementConfidence,
   computeConsensus,
+  DEFAULT_SOURCE_WEIGHTS,
   median,
   rejectOutlierIndices,
   standardDeviation,
@@ -179,6 +180,17 @@ describe("computeConsensus", () => {
     ];
     const unweighted = computeConsensus(readings);
     const weighted = computeConsensus(readings, { trusted: 10 });
+    expect(unweighted.current.temperatureC).toBe(15);
+    expect(weighted.current.temperatureC).toBe(25);
+  });
+
+  it("gives NWS more pull than a neutral-weight source by default", () => {
+    const readings = [
+      reading({ source: "nws", temperatureC: 25 }),
+      reading({ source: "open-meteo", temperatureC: 15 }),
+    ];
+    const unweighted = computeConsensus(readings);
+    const weighted = computeConsensus(readings, DEFAULT_SOURCE_WEIGHTS);
     expect(unweighted.current.temperatureC).toBe(15);
     expect(weighted.current.temperatureC).toBe(25);
   });

@@ -70,6 +70,10 @@ statistical outliers (MAD-based, so one broken/divergent source can't skew the
 result). Condition text uses a weighted vote. The confidence score reflects both how
 tightly the sources agree and how many sources contributed.
 
+Sources are weighted by trust (`DEFAULT_SOURCE_WEIGHTS` in `consensus.ts`): NWS
+(authoritative for US locations) and AccuWeather (established commercial forecaster)
+get a boost; other sources use the neutral baseline weight.
+
 ## Cost control
 
 Weather lookups are fetched on demand for whatever location is searched and cached

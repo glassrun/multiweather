@@ -1,5 +1,18 @@
 import type { DailyForecast, WeatherReading } from "@/lib/weather-types";
 
+/**
+ * Default per-source trust weights for the weighted median/vote.
+ * NWS is the authoritative US government source; AccuWeather is a
+ * long-established commercial forecaster. Open-Meteo blends several
+ * numerical models and has no accuracy track record of its own, so it
+ * (and the remaining commercial sources) get the neutral baseline weight.
+ * Unlisted sources also fall back to 1 via `weights[source] ?? 1`.
+ */
+export const DEFAULT_SOURCE_WEIGHTS: Record<string, number> = {
+  nws: 1.5,
+  accuweather: 1.25,
+};
+
 export interface ConsensusCurrent {
   temperatureC: number;
   feelsLikeC: number | null;

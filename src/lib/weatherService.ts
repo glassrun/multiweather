@@ -1,5 +1,5 @@
 import { fetchAllSources } from "@/lib/providers";
-import { computeConsensus, type ConsensusResult } from "@/lib/consensus";
+import { computeConsensus, DEFAULT_SOURCE_WEIGHTS, type ConsensusResult } from "@/lib/consensus";
 import { getCached, setCached } from "@/lib/redis";
 import type { WeatherReading } from "@/lib/weather-types";
 
@@ -32,7 +32,7 @@ export async function getWeatherForLocation(lat: number, lon: number): Promise<W
 
   return {
     location: { latitude: lat, longitude: lon },
-    consensus: computeConsensus(sources),
+    consensus: computeConsensus(sources, DEFAULT_SOURCE_WEIGHTS),
     sources,
     cached: Boolean(cached),
   };
